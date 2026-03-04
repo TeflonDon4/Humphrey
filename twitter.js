@@ -153,6 +153,7 @@ async function checkAndReply() {
     console.log('Checking mentions...');
     const result = await getMentions(lastMentionId);
     console.log('API status:', result.status);
+    console.log('Full response:', JSON.stringify(result.body).substring(0, 500));
     if (result.status !== 200) {
       console.log('Error:', JSON.stringify(result.body).substring(0, 200));
       return;
