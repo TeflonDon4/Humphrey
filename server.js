@@ -761,6 +761,20 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  
+  if (req.method === 'GET' && req.url === '/twitter-test') {
+    const { execSync } = require('child_process');
+    const apiKey = process.env.TWITTER_API_KEY || 'MISSING';
+    const accessToken = process.env.TWITTER_ACCESS_TOKEN || 'MISSING';
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      api_key_length: apiKey.length,
+      api_key_start: apiKey.substring(0, 4),
+      access_token_length: accessToken.length,
+      access_token_start: accessToken.substring(0, 6)
+    }));
+    return;
+  }
   if (req.method === 'GET' && req.url === '/dashboard') {
     const logPath = path.join(__dirname, 'intakes.jsonl');
     let intakes = [];
