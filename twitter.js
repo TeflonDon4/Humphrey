@@ -118,7 +118,7 @@ function request(method, url, queryParams, postBody) {
 async function getMentions(sinceId) {
   const params = { 'tweet.fields': 'author_id,text', 'expansions': 'author_id', 'user.fields': 'username', 'max_results': '10' };
   if (sinceId) params.since_id = sinceId;
-  return request('GET', 'https://api.twitter.com/2/users/2029291561155239937/mentions', params);
+  return request('GET', 'https://api.twitter.com/2/users/32515693/mentions', params);
 }
 
 async function postReply(text, replyToId) {
@@ -163,7 +163,7 @@ async function checkAndReply() {
     if (result.body.includes?.users) result.body.includes.users.forEach(u => { users[u.id] = u.username; });
     console.log('Mentions:', mentions.length);
     for (const tweet of [...mentions].reverse()) {
-      if (tweet.author_id === '2029291561155239937') continue;
+      if (tweet.author_id === '32515693') continue;
       lastMentionId = tweet.id;
       const text = tweet.text || '';
       const authorName = users[tweet.author_id] || 'unknown';
