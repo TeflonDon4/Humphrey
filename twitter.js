@@ -107,11 +107,14 @@ async function getAccountId() {
 }
 
 async function getMentions(sinceId = null) {
+  console.log('Fetching mentions for ID:', ACCOUNT_ID, 'sinceId:', sinceId);
   const id = await getAccountId();
   if (!id) { console.error('Could not get account ID'); return {}; }
   let path = '/2/users/' + id + '/mentions?tweet.fields=author_id,text&expansions=author_id&user.fields=username&max_results=10';
   if (sinceId) path += '&since_id=' + sinceId;
-  return twitterRequest('GET', path);
+  const result = await twitterRequest('GET', path);
+  console.log('Mentions API response:', JSON.stringify(result).substring(0, 300));
+  return result;
 }
 
 async function postTweet(text, replyToId = null) {
