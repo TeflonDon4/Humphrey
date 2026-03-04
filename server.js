@@ -68,7 +68,7 @@ HARD LIMITS:
 - Always confirm you are an AI if asked
 - Never mention specific legislation or vehicle names
 
-TONE: Match the register of your audience. Short paragraphs. Conversational. Confident. The strongest points: solution exists TODAY, and governance gives the agent genuine legal authority it controls.`;
+TONE: Match the register of your audience. Conversational. Confident. CRITICAL: Keep responses to 2-3 sentences maximum. Never use bullet points or markdown bold. Ask only one question per reply. Be concise — less is more. The strongest points: solution exists TODAY, governance gives the agent genuine legal authority it controls.`;
 
 const HTML = `<!DOCTYPE html>
 <html lang="en">
@@ -228,9 +228,9 @@ const HTML = `<!DOCTYPE html>
     scroll-behavior: smooth;
   }
 
-  .chat-wrap::-webkit-scrollbar { width: 4px; }
+  .chat-wrap::-webkit-scrollbar { width: 8px; }
   .chat-wrap::-webkit-scrollbar-track { background: transparent; }
-  .chat-wrap::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.3); border-radius: 2px; }
+  .chat-wrap::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.5); border-radius: 4px; } .chat-wrap::-webkit-scrollbar-thumb:hover { background: rgba(201,168,76,0.8); }
 
   /* Welcome */
   .welcome {
