@@ -601,24 +601,30 @@ function removeTyping() {
 }
 
 function checkIntakeComplete(text) {
-  if (text.includes('<INTAKE_COMPLETE>') && !intakeComplete) {
+  var startTag = '<INTAKE_COMPLETE>';
+  var endTag = '</INTAKE_COMPLETE>';
+  if (text.indexOf(startTag) !== -1 && !intakeComplete) {
     intakeComplete = true;
-    const jsonMatch = text.match(/<INTAKE_COMPLETE>([\s\S]*?)<\/INTAKE_COMPLETE>/);
-    if (jsonMatch) {
+    var startIdx = text.indexOf(startTag) + startTag.length;
+    var endIdx = text.indexOf(endTag);
+    if (endIdx > startIdx) {
+      var jsonStr = text.substring(startIdx, endIdx).trim();
       fetch('/intake', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: jsonMatch[1].trim()
+        body: jsonStr
       });
     }
-    const banner = document.createElement('div');
+    var banner = document.createElement('div');
     banner.className = 'intake-complete';
     banner.innerHTML = '<h3>Intake Complete</h3><p>Your details have been received. A specialist from BDA AI Agent Services will be in touch shortly.</p>';
     chatEl.appendChild(banner);
     chatEl.scrollTop = chatEl.scrollHeight;
     inputEl.disabled = true;
     sendBtn.disabled = true;
-    return text.replace(/<INTAKE_COMPLETE>[\s\S]*?<\/INTAKE_COMPLETE>/g, '').trim();
+    var cleanText = '';
+    if (text.indexOf(startTag) > 0) cleanText = text.substring(0, text.indexOf(startTag)).trim();
+    return cleanText;
   }
   return text;
 }
