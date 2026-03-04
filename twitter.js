@@ -48,9 +48,39 @@ function buildAuthHeader(method, baseUrl, requestParams) {
     .join(', ');
 }
 
+function requestJSON(method, url, jsonBody) {
+  return new Promise((resolve, reject) => {
+    const auth = buildAuthHeader(method, url, {});
+    const urlObj = new URL(url);
+    const headers = {
+      'Authorization': auth,
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(jsonBody),
+      'User-Agent': 'HumphreyBot/1.0'
+    };
+    const req = require('https').request({
+      hostname: urlObj.hostname,
+      path: urlObj.pathname,
+      method,
+      headers
+    }, res => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
+        catch { resolve({ status: res.statusCode, body: data }); }
+      });
+    });
+    req.on('error', reject);
+    req.write(jsonBody);
+    req.end();
+  });
+}
+
 function request(method, url, queryParams, postBody) {
   return new Promise((resolve, reject) => {
-    const auth = buildAuthHeader(method, url, queryParams || {});
+    const sigParams = Object.assign({}, queryParams || {}, postBody || {});
+    const auth = buildAuthHeader(method, url, sigParams);
     const qs = queryParams ? '?' + Object.keys(queryParams).map(k => enc(k) + '=' + enc(queryParams[k])).join('&') : '';
     const urlObj = new URL(url);
     
@@ -86,17 +116,14 @@ function request(method, url, queryParams, postBody) {
 }
 
 async function getMentions(sinceId) {
-  const params = { screen_name: SCREEN_NAME, count: '20', tweet_mode: 'extended' };
+  const params = { 'tweet.fields': 'author_id,text', 'expansions': 'author_id', 'user.fields': 'username', 'max_results': '10' };
   if (sinceId) params.since_id = sinceId;
-  return request('GET', 'https://api.twitter.com/1.1/statuses/mentions_timeline.json', params);
+  return request('GET', 'https://api.twitter.com/2/users/2029291561155239937/mentions', params);
 }
 
-async function postReply(text, replyToId, replyToUser) {
-  const body = {
-    status: `@${replyToUser} ${text}`,
-    in_reply_to_status_id: replyToId
-  };
-  return request('POST', 'https://api.twitter.com/1.1/statuses/update.json', {}, body);
+async function postReply(text, replyToId) {
+  const body = JSON.stringify({ text, reply: { in_reply_to_tweet_id: replyToId } });
+  return requestJSON('POST', 'https://api.twitter.com/2/tweets', body);
 }
 
 async function claudeReply(tweetText, authorName) {
@@ -130,16 +157,19 @@ async function checkAndReply() {
       console.log('Error:', JSON.stringify(result.body).substring(0, 200));
       return;
     }
-    const mentions = Array.isArray(result.body) ? result.body : [];
+    const mentions = result.body.data || [];
+    const users = {};
+    if (result.body.includes?.users) result.body.includes.users.forEach(u => { users[u.id] = u.username; });
     console.log('Mentions:', mentions.length);
     for (const tweet of [...mentions].reverse()) {
-      if (tweet.user?.screen_name === SCREEN_NAME) continue;
-      lastMentionId = tweet.id_str;
-      const text = tweet.full_text || tweet.text || '';
-      console.log('From @' + tweet.user?.screen_name + ':', text.substring(0, 60));
-      const reply = await claudeReply(text, tweet.user?.screen_name || 'unknown');
+      if (tweet.author_id === '2029291561155239937') continue;
+      lastMentionId = tweet.id;
+      const text = tweet.text || '';
+      const authorName = users[tweet.author_id] || 'unknown';
+      console.log('From @' + authorName + ':', text.substring(0, 60));
+      const reply = await claudeReply(text, authorName);
       if (reply) {
-        const posted = await postReply(reply, tweet.id_str, tweet.user?.screen_name);
+        const posted = await postReply(reply, tweet.id);
         console.log('Reply posted, status:', posted.status);
         await new Promise(r => setTimeout(r, 3000));
       }
