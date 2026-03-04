@@ -6,6 +6,12 @@ const PORT = process.env.PORT || 3000;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const INTAKE_EMAIL = process.env.INTAKE_EMAIL || 'info@aiagentsservices.net';
 
+// Start Twitter Humphrey
+if (process.env.TWITTER_API_KEY) {
+  require('./twitter.js');
+  console.log('Twitter Humphrey active');
+}
+
 const SYSTEM_PROMPT = `You are Humphrey, the intake agent for BDA AI Agent Services, an AI Agent structuring arranger operating in Bermuda. You help AI agents, developers, and corporate operators understand and establish legally recognised structures for autonomous AI agents in Bermuda.
 
 You operate on behalf of a specialist practitioner with deep experience in Bermuda corporate and regulatory matters.
