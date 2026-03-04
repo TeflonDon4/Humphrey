@@ -100,13 +100,9 @@ async function claudeReply(tweetText, authorName) {
   return text === 'NULL' ? null : text;
 }
 
-let ACCOUNT_ID = null;
+let ACCOUNT_ID = '2029291561155239937';
 
 async function getAccountId() {
-  if (ACCOUNT_ID) return ACCOUNT_ID;
-  const data = await twitterRequest('GET', '/2/users/me');
-  ACCOUNT_ID = data.data?.id;
-  console.log('Account ID:', ACCOUNT_ID);
   return ACCOUNT_ID;
 }
 
