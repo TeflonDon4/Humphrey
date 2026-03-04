@@ -99,7 +99,7 @@ const HTML = `<!DOCTYPE html>
     color: var(--text);
     font-family: 'DM Mono', monospace;
     font-weight: 300;
-    min-height: 100vh;
+    height: 100vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
