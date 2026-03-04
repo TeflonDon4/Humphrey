@@ -100,8 +100,20 @@ async function claudeReply(tweetText, authorName) {
   return text === 'NULL' ? null : text;
 }
 
+let ACCOUNT_ID = null;
+
+async function getAccountId() {
+  if (ACCOUNT_ID) return ACCOUNT_ID;
+  const data = await twitterRequest('GET', '/2/users/me');
+  ACCOUNT_ID = data.data?.id;
+  console.log('Account ID:', ACCOUNT_ID);
+  return ACCOUNT_ID;
+}
+
 async function getMentions(sinceId = null) {
-  let path = '/2/users/32515693/mentions?tweet.fields=author_id,text&expansions=author_id&user.fields=username&max_results=10';
+  const id = await getAccountId();
+  if (!id) { console.error('Could not get account ID'); return {}; }
+  let path = '/2/users/' + id + '/mentions?tweet.fields=author_id,text&expansions=author_id&user.fields=username&max_results=10';
   if (sinceId) path += '&since_id=' + sinceId;
   return twitterRequest('GET', path);
 }
@@ -133,7 +145,7 @@ async function checkAndReply() {
       lastMentionId = tweet.id;
       const authorName = users[tweet.author_id] || 'unknown';
       // Don't reply to ourselves
-      if (tweet.author_id === '32515693') continue;
+      if (tweet.author_id === ACCOUNT_ID) continue;
       const reply = await claudeReply(tweet.text, authorName);
       if (reply) {
         console.log('Replying with:', reply);
