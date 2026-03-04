@@ -10,6 +10,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "twitter-api-v2": "^1.17.0"
+    "oauth-1.0a": "^2.2.6",
+    "crypto": "^1.0.1"
   }
 }
