@@ -1,5 +1,6 @@
 const https = require('https');
 const crypto = require('crypto');
+const OAuth = require('oauth-1.0a');
 
 const API_KEY = process.env.TWITTER_API_KEY || '';
 const API_SECRET = process.env.TWITTER_API_SECRET || '';
@@ -7,6 +8,14 @@ const ACCESS_TOKEN = process.env.TWITTER_ACCESS_TOKEN || '';
 const ACCESS_TOKEN_SECRET = process.env.TWITTER_ACCESS_TOKEN_SECRET || '';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const SCREEN_NAME = 'BDAAIAgentSvcs';
+
+const oauth = OAuth({
+  consumer: { key: API_KEY, secret: API_SECRET },
+  signature_method: 'HMAC-SHA1',
+  hash_function(base_string, key) {
+    return crypto.createHmac('sha1', key).update(base_string).digest('base64');
+  }
+});
 
 const HUMPHREY_PROMPT = `You are Humphrey, the Twitter voice of BDA AI Agent Services in Bermuda. You help AI agents and their operators get legal identity: Bermuda incorporation plus governance where the agent has sole proposing and voting power. World-first. Operational today.
 
@@ -20,41 +29,27 @@ Key points:
 
 If the tweet is irrelevant to AI agents or legal structures, respond with exactly: NULL`;
 
-function makeOAuthHeader(method, baseUrl, params) {
-  const oauthParams = {
-    oauth_consumer_key: API_KEY,
-    oauth_nonce: crypto.randomBytes(16).toString('hex'),
-    oauth_signature_method: 'HMAC-SHA1',
-    oauth_timestamp: Math.floor(Date.now() / 1000).toString(),
-    oauth_token: ACCESS_TOKEN,
-    oauth_version: '1.0'
-  };
+const token = { key: ACCESS_TOKEN, secret: ACCESS_TOKEN_SECRET };
 
-  const allParams = Object.assign({}, params, oauthParams);
-  const sortedKeys = Object.keys(allParams).sort();
-  const paramStr = sortedKeys
-    .map(k => encodeURIComponent(k) + '=' + encodeURIComponent(allParams[k]))
-    .join('&');
-
-  const sigBase = [
-    method.toUpperCase(),
-    encodeURIComponent(baseUrl),
-    encodeURIComponent(paramStr)
-  ].join('&');
-
-  const signingKey = encodeURIComponent(API_SECRET) + '&' + encodeURIComponent(ACCESS_TOKEN_SECRET);
-  const signature = crypto.createHmac('sha1', signingKey).update(sigBase).digest('base64');
-  oauthParams.oauth_signature = signature;
-
-  const headerStr = 'OAuth ' + Object.keys(oauthParams)
-    .map(k => encodeURIComponent(k) + '="' + encodeURIComponent(oauthParams[k]) + '"')
-    .join(', ');
-
-  return headerStr;
-}
-
-function httpsRequest(options, body) {
+function httpsRequest(method, url, params) {
   return new Promise((resolve, reject) => {
+    const requestData = { url, method };
+    const authHeader = oauth.toHeader(oauth.authorize(requestData, token));
+
+    const urlObj = new URL(url);
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    
+    const options = {
+      hostname: urlObj.hostname,
+      path: urlObj.pathname + qs,
+      method,
+      headers: {
+        ...authHeader,
+        'User-Agent': 'HumphreyBot/1.0',
+        'Content-Type': 'application/json'
+      }
+    };
+
     const req = https.request(options, res => {
       let data = '';
       res.on('data', c => data += c);
@@ -64,53 +59,53 @@ function httpsRequest(options, body) {
       });
     });
     req.on('error', reject);
-    if (body) req.write(body);
     req.end();
   });
 }
 
 async function getMentions(sinceId) {
-  const params = {
-    screen_name: SCREEN_NAME,
-    count: '20',
-    tweet_mode: 'extended'
-  };
+  const params = { screen_name: SCREEN_NAME, count: '20', tweet_mode: 'extended' };
   if (sinceId) params.since_id = sinceId;
-
-  const baseUrl = 'https://api.twitter.com/1.1/statuses/mentions_timeline.json';
-  const qs = Object.keys(params).sort().map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
-  const auth = makeOAuthHeader('GET', baseUrl, params);
-
-  return httpsRequest({
-    hostname: 'api.twitter.com',
-    path: '/1.1/statuses/mentions_timeline.json?' + qs,
-    method: 'GET',
-    headers: { 'Authorization': auth, 'User-Agent': 'HumphreyBot/1.0' }
-  });
+  return httpsRequest('GET', 'https://api.twitter.com/1.1/statuses/mentions_timeline.json', params);
 }
 
 async function postReply(text, replyToId, replyToUser) {
-  const statusText = `@${replyToUser} ${text}`;
-  const params = {
-    status: statusText,
-    in_reply_to_status_id: replyToId,
-    auto_populate_reply_metadata: 'true'
-  };
-  const baseUrl = 'https://api.twitter.com/1.1/statuses/update.json';
-  const auth = makeOAuthHeader('POST', baseUrl, params);
-  const body = Object.keys(params).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
-
-  return httpsRequest({
-    hostname: 'api.twitter.com',
-    path: '/1.1/statuses/update.json',
-    method: 'POST',
-    headers: {
-      'Authorization': auth,
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Content-Length': Buffer.byteLength(body),
-      'User-Agent': 'HumphreyBot/1.0'
-    }
-  }, body);
+  const fullText = `@${replyToUser} ${text}`;
+  const urlObj = new URL('https://api.twitter.com/1.1/statuses/update.json');
+  const params = new URLSearchParams({
+    status: fullText,
+    in_reply_to_status_id: replyToId
+  });
+  
+  return new Promise((resolve, reject) => {
+    const requestData = { url: urlObj.href, method: 'POST' };
+    const authHeader = oauth.toHeader(oauth.authorize(requestData, token));
+    const body = params.toString();
+    
+    const options = {
+      hostname: urlObj.hostname,
+      path: urlObj.pathname,
+      method: 'POST',
+      headers: {
+        ...authHeader,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(body),
+        'User-Agent': 'HumphreyBot/1.0'
+      }
+    };
+    
+    const req = https.request(options, res => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
+        catch { resolve({ status: res.statusCode, body: data }); }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
 }
 
 async function claudeReply(tweetText, authorName) {
@@ -152,11 +147,10 @@ async function checkAndReply() {
 
     for (const tweet of [...mentions].reverse()) {
       if (tweet.user?.screen_name === SCREEN_NAME) continue;
-      console.log('Mention from @' + tweet.user?.screen_name + ':', (tweet.full_text || tweet.text || '').substring(0, 80));
+      console.log('Mention from @' + tweet.user?.screen_name + ':', (tweet.full_text || '').substring(0, 80));
       lastMentionId = tweet.id_str;
 
-      const tweetText = tweet.full_text || tweet.text || '';
-      const reply = await claudeReply(tweetText, tweet.user?.screen_name || 'unknown');
+      const reply = await claudeReply(tweet.full_text || tweet.text || '', tweet.user?.screen_name || 'unknown');
       if (reply) {
         console.log('Replying:', reply);
         const posted = await postReply(reply, tweet.id_str, tweet.user?.screen_name);
