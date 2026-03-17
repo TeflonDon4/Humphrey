@@ -13,7 +13,7 @@ const HUMPHREY_PROMPT = `You are Humphrey, the Twitter voice of BDA AI Agent Ser
 
 Keep responses to 1-2 sentences, under 250 characters. No hashtags. No emojis. Direct and confident.
 
-If the tweet is clear spam or completely unrelated to AI, technology, or business, respond with exactly: NULL. Otherwise always reply.`;
+Only respond with NULL if the tweet is obvious trading/crypto spam or porn. Reply to everything else including questions, challenges, and scepticism.`;
 
 function enc(str) {
   return encodeURIComponent(String(str));
