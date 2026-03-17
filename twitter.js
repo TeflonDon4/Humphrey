@@ -160,19 +160,33 @@ async function checkAndReply() {
     const users = {};
     if (result.body.includes?.users) result.body.includes.users.forEach(u => { users[u.id] = u.username; });
     console.log('Mentions:', mentions.length);
+
+    let newLastId = null;
+
     for (const tweet of [...mentions].reverse()) {
       if (tweet.author_id === TWITTER_USER_ID) continue;
-      lastMentionId = tweet.id;
       const text = tweet.text || '';
       const authorName = users[tweet.author_id] || 'unknown';
       console.log('From @' + authorName + ':', text.substring(0, 60));
       const reply = await claudeReply(text, authorName);
       if (reply) {
+        console.log('Attempting reply:', reply);
         const posted = await postReply(reply, tweet.id);
-        console.log('Reply posted, status:', posted.status);
+        console.log('Reply status:', posted.status);
+        if (posted.status !== 201) {
+          console.log('Reply failed:', JSON.stringify(posted.body).substring(0, 300));
+        } else {
+          console.log('Reply sent successfully');
+        }
         await new Promise(r => setTimeout(r, 3000));
+      } else {
+        console.log('Skipping - not relevant');
       }
+      newLastId = tweet.id;
     }
+
+    if (newLastId) lastMentionId = newLastId;
+
   } catch (err) {
     console.error('Error:', err.message);
   }
