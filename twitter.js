@@ -7,6 +7,7 @@ const ACCESS_TOKEN = process.env.TWITTER_ACCESS_TOKEN || '';
 const ACCESS_TOKEN_SECRET = process.env.TWITTER_ACCESS_TOKEN_SECRET || '';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const SCREEN_NAME = 'BDAAIAgentSvcs';
+const TWITTER_USER_ID = process.env.TWITTER_USER_ID || '';
 
 const HUMPHREY_PROMPT = `You are Humphrey, the Twitter voice of BDA AI Agent Services in Bermuda. You help AI agents and their operators get legal identity: Bermuda incorporation plus governance where the agent has sole proposing and voting power. World-first. Operational today.
 
@@ -28,10 +29,8 @@ function buildAuthHeader(method, baseUrl, requestParams) {
     oauth_version: '1.0'
   };
 
-  // Combine oauth params with request params for signature
   const allParams = Object.assign({}, requestParams, oauth);
   
-  // Sort by encoded key
   const paramStr = Object.keys(allParams)
     .sort()
     .map(k => enc(k) + '=' + enc(allParams[k]))
@@ -41,7 +40,6 @@ function buildAuthHeader(method, baseUrl, requestParams) {
   const signingKey = enc(API_SECRET) + '&' + enc(ACCESS_TOKEN_SECRET);
   oauth.oauth_signature = crypto.createHmac('sha1', signingKey).update(baseStr).digest('base64');
 
-  // Build header with only oauth params (not request params)
   return 'OAuth ' + Object.keys(oauth)
     .sort()
     .map(k => enc(k) + '="' + enc(oauth[k]) + '"')
@@ -118,7 +116,7 @@ function request(method, url, queryParams, postBody) {
 async function getMentions(sinceId) {
   const params = { 'tweet.fields': 'author_id,text', 'expansions': 'author_id', 'user.fields': 'username', 'max_results': '10' };
   if (sinceId) params.since_id = sinceId;
-  return request('GET', `https://api.twitter.com/2/users/${process.env.TWITTER_USER_ID}/mentions`, params);
+  return request('GET', `https://api.twitter.com/2/users/${TWITTER_USER_ID}/mentions`, params);
 }
 
 async function postReply(text, replyToId) {
@@ -163,7 +161,7 @@ async function checkAndReply() {
     if (result.body.includes?.users) result.body.includes.users.forEach(u => { users[u.id] = u.username; });
     console.log('Mentions:', mentions.length);
     for (const tweet of [...mentions].reverse()) {
-      if (tweet.author_id === '32515693') continue;
+      if (tweet.author_id === TWITTER_USER_ID) continue;
       lastMentionId = tweet.id;
       const text = tweet.text || '';
       const authorName = users[tweet.author_id] || 'unknown';
