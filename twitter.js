@@ -118,7 +118,7 @@ function request(method, url, queryParams, postBody) {
 async function getMentions(sinceId) {
   const params = { 'tweet.fields': 'author_id,text', 'expansions': 'author_id', 'user.fields': 'username', 'max_results': '10' };
   if (sinceId) params.since_id = sinceId;
-  return request('GET', 'https://api.twitter.com/2/users/32515693/mentions', params);
+  return request('GET', `https://api.twitter.com/2/users/${process.env.TWITTER_USER_ID}/mentions`, params);
 }
 
 async function postReply(text, replyToId) {
