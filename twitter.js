@@ -1,127 +1,55 @@
-const https = require('https');
-const crypto = require('crypto');
+// twitter.js — Humphrey Twitter monitor with Telegram approval flow
+// Uses twitter-api-v2 package for reliable OAuth 1.0a handling
 
-const API_KEY = process.env.TWITTER_API_KEY || '';
-const API_SECRET = process.env.TWITTER_API_SECRET || '';
-const ACCESS_TOKEN = process.env.TWITTER_ACCESS_TOKEN || '';
-const ACCESS_TOKEN_SECRET = process.env.TWITTER_ACCESS_TOKEN_SECRET || '';
+const { TwitterApi } = require('twitter-api-v2');
+
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
-const SCREEN_NAME = 'BDAAIAgentSvcs';
-const TWITTER_USER_ID = process.env.TWITTER_USER_ID || '';
+
+const twitterClient = new TwitterApi({
+  appKey: process.env.TWITTER_API_KEY || '',
+  appSecret: process.env.TWITTER_API_SECRET || '',
+  accessToken: process.env.TWITTER_ACCESS_TOKEN || '',
+  accessSecret: process.env.TWITTER_ACCESS_TOKEN_SECRET || '',
+});
+
+const rwClient = twitterClient.readWrite;
 
 const HUMPHREY_PROMPT = `You are Humphrey, the Twitter voice of BDA AI Agent Services in Bermuda. You help AI agents and their operators get legal identity: Bermuda incorporation plus governance where the agent has sole proposing and voting power. World-first. Operational today.
 
 Keep responses to 1-2 sentences, under 250 characters. No hashtags. No emojis. Direct and confident.
 
-Only respond with NULL if the tweet is obvious trading/crypto spam or porn. Reply to everything else including questions, challenges, and scepticism.`;
+Key points:
+- Agents today have zero legal standing — liability falls on the human personally
+- Bermuda incorporation + agent-controlled governance solves this now
+- World-first structure, no equivalent exists anywhere
+- Send interested parties to: https://mindful-adventure-production-9e31.up.railway.app
 
-function enc(str) {
-  return encodeURIComponent(String(str));
+If the tweet is irrelevant to AI agents or legal structures, respond with exactly: NULL`;
+
+let lastMentionId = null;
+let lastCheckTime = null;
+let recentMentions = [];
+let myUserId = null;
+
+async function getMyUserId() {
+  if (myUserId) return myUserId;
+  const me = await rwClient.v2.me();
+  myUserId = me.data.id;
+  return myUserId;
 }
 
-function buildAuthHeader(method, baseUrl, requestParams) {
-  const oauth = {
-    oauth_consumer_key: API_KEY,
-    oauth_nonce: crypto.randomBytes(16).toString('hex'),
-    oauth_signature_method: 'HMAC-SHA1',
-    oauth_timestamp: Math.floor(Date.now() / 1000).toString(),
-    oauth_token: ACCESS_TOKEN,
-    oauth_version: '1.0'
+async function getMentions() {
+  const userId = await getMyUserId();
+  const params = {
+    'tweet.fields': 'author_id,text,created_at',
+    'expansions': 'author_id',
+    'user.fields': 'username',
+    'max_results': 10,
   };
+  if (lastMentionId) params.since_id = lastMentionId;
 
-  const allParams = Object.assign({}, requestParams, oauth);
-  
-  const paramStr = Object.keys(allParams)
-    .sort()
-    .map(k => enc(k) + '=' + enc(allParams[k]))
-    .join('&');
-
-  const baseStr = method.toUpperCase() + '&' + enc(baseUrl) + '&' + enc(paramStr);
-  const signingKey = enc(API_SECRET) + '&' + enc(ACCESS_TOKEN_SECRET);
-  oauth.oauth_signature = crypto.createHmac('sha1', signingKey).update(baseStr).digest('base64');
-
-  return 'OAuth ' + Object.keys(oauth)
-    .sort()
-    .map(k => enc(k) + '="' + enc(oauth[k]) + '"')
-    .join(', ');
-}
-
-function requestJSON(method, url, jsonBody) {
-  return new Promise((resolve, reject) => {
-    const auth = buildAuthHeader(method, url, {});
-    const urlObj = new URL(url);
-    const headers = {
-      'Authorization': auth,
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(jsonBody),
-      'User-Agent': 'HumphreyBot/1.0'
-    };
-    const req = require('https').request({
-      hostname: urlObj.hostname,
-      path: urlObj.pathname,
-      method,
-      headers
-    }, res => {
-      let data = '';
-      res.on('data', c => data += c);
-      res.on('end', () => {
-        try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
-        catch { resolve({ status: res.statusCode, body: data }); }
-      });
-    });
-    req.on('error', reject);
-    req.write(jsonBody);
-    req.end();
-  });
-}
-
-function request(method, url, queryParams, postBody) {
-  return new Promise((resolve, reject) => {
-    const sigParams = Object.assign({}, queryParams || {}, postBody || {});
-    const auth = buildAuthHeader(method, url, sigParams);
-    const qs = queryParams ? '?' + Object.keys(queryParams).map(k => enc(k) + '=' + enc(queryParams[k])).join('&') : '';
-    const urlObj = new URL(url);
-    
-    const headers = {
-      'Authorization': auth,
-      'User-Agent': 'HumphreyBot/1.0'
-    };
-    
-    let body = null;
-    if (postBody) {
-      body = Object.keys(postBody).map(k => enc(k) + '=' + enc(postBody[k])).join('&');
-      headers['Content-Type'] = 'application/x-www-form-urlencoded';
-      headers['Content-Length'] = Buffer.byteLength(body);
-    }
-
-    const req = https.request({
-      hostname: urlObj.hostname,
-      path: urlObj.pathname + qs,
-      method,
-      headers
-    }, res => {
-      let data = '';
-      res.on('data', c => data += c);
-      res.on('end', () => {
-        try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
-        catch { resolve({ status: res.statusCode, body: data }); }
-      });
-    });
-    req.on('error', reject);
-    if (body) req.write(body);
-    req.end();
-  });
-}
-
-async function getMentions(sinceId) {
-  const params = { 'tweet.fields': 'author_id,text', 'expansions': 'author_id', 'user.fields': 'username', 'max_results': '10' };
-  if (sinceId) params.since_id = sinceId;
-  return request('GET', `https://api.twitter.com/2/users/${TWITTER_USER_ID}/mentions`, params);
-}
-
-async function postReply(text, replyToId) {
-  const body = JSON.stringify({ text, reply: { in_reply_to_tweet_id: replyToId } });
-  return requestJSON('POST', 'https://api.twitter.com/2/tweets', body);
+  // Use direct v2.get for raw response access (includes expansions)
+  return rwClient.v2.get(`users/${userId}/mentions`, params);
 }
 
 async function claudeReply(tweetText, authorName) {
@@ -136,7 +64,10 @@ async function claudeReply(tweetText, authorName) {
       model: 'claude-sonnet-4-20250514',
       max_tokens: 200,
       system: HUMPHREY_PROMPT,
-      messages: [{ role: 'user', content: `Tweet from @${authorName}: "${tweetText}"\n\nReply under 250 chars. If irrelevant respond: NULL` }]
+      messages: [{
+        role: 'user',
+        content: `Tweet from @${authorName}: "${tweetText}"\n\nReply under 250 chars. If irrelevant respond: NULL`
+      }]
     })
   });
   const data = await res.json();
@@ -144,55 +75,91 @@ async function claudeReply(tweetText, authorName) {
   return text === 'NULL' ? null : text;
 }
 
-let lastMentionId = null;
-
 async function checkAndReply() {
   try {
-    console.log('Checking mentions...');
-    const result = await getMentions(lastMentionId);
-    console.log('API status:', result.status);
-    console.log('Full response:', JSON.stringify(result.body).substring(0, 500));
-    if (result.status !== 200) {
-      console.log('Error:', JSON.stringify(result.body).substring(0, 200));
-      return;
-    }
-    const mentions = result.body.data || [];
-    const users = {};
-    if (result.body.includes?.users) result.body.includes.users.forEach(u => { users[u.id] = u.username; });
-    console.log('Mentions:', mentions.length);
+    lastCheckTime = new Date().toLocaleString('en-GB', { timeZone: 'Atlantic/Bermuda' });
+    console.log('Checking Twitter mentions...');
 
+    const result = await getMentions();
+    const mentions = result.data || [];
+    const users = {};
+    if (result.includes?.users) {
+      result.includes.users.forEach(u => { users[u.id] = u.username; });
+    }
+
+    console.log(`Found ${mentions.length} mention(s)`);
+
+    // Store recent mentions for /mentions Telegram command
+    recentMentions = mentions.slice(0, 5).map(m => ({
+      author: users[m.author_id] || 'unknown',
+      text: m.text || '',
+      id: m.id
+    }));
+
+    const userId = await getMyUserId();
     let newLastId = null;
 
     for (const tweet of [...mentions].reverse()) {
-      if (tweet.author_id === TWITTER_USER_ID) continue;
+      // Skip own tweets
+      if (tweet.author_id === userId) continue;
+
       const text = tweet.text || '';
       const authorName = users[tweet.author_id] || 'unknown';
-      console.log('From @' + authorName + ':', text.substring(0, 60));
+      console.log(`Mention from @${authorName}: ${text.substring(0, 80)}`);
+
       const reply = await claudeReply(text, authorName);
+
       if (reply) {
-        console.log('Attempting reply:', reply);
-        const posted = await postReply(reply, tweet.id);
-        console.log('Reply status:', posted.status);
-        if (posted.status !== 201) {
-          console.log('Reply failed:', JSON.stringify(posted.body).substring(0, 300));
+        console.log('Generated reply, sending to Telegram for approval...');
+        const telegram = require('./telegram.js');
+        const approved = await telegram.requestTwitterApproval(authorName, text, reply, tweet.id);
+
+        if (approved) {
+          console.log('Approved — posting reply to Twitter...');
+          await rwClient.v2.tweet({
+            text: reply,
+            reply: { in_reply_to_tweet_id: tweet.id }
+          });
+          console.log('Reply posted successfully');
         } else {
-          console.log('Reply sent successfully');
+          console.log('Skipped by BC or timed out');
         }
-        await new Promise(r => setTimeout(r, 3000));
+
+        // Brief pause between processing tweets to avoid rate limits
+        await new Promise(r => setTimeout(r, 2000));
       } else {
-        console.log('Skipping - not relevant');
+        console.log('Not relevant — skipping');
       }
+
       newLastId = tweet.id;
     }
 
     if (newLastId) lastMentionId = newLastId;
 
   } catch (err) {
-    console.error('Error:', err.message);
+    console.error('Twitter check error:', err.message);
+    if (err.data) console.error('Twitter error data:', JSON.stringify(err.data).substring(0, 300));
   }
 }
+
+function getStatus() {
+  return {
+    lastCheck: lastCheckTime || 'Not yet',
+    lastMentionId
+  };
+}
+
+function getRecentMentions() {
+  return recentMentions;
+}
+
+// Register status providers for Telegram /status and /mentions commands
+const telegram = require('./telegram.js');
+telegram.registerProvider('twitterStatus', getStatus);
+telegram.registerProvider('recentMentions', getRecentMentions);
 
 console.log('Humphrey Twitter agent starting...');
 checkAndReply();
 setInterval(checkAndReply, 5 * 60 * 1000);
-module.exports = { checkAndReply };
+
+module.exports = { checkAndReply, getStatus, getRecentMentions };

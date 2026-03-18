@@ -12,6 +12,89 @@ if (process.env.TWITTER_API_KEY) {
   console.log('Twitter Humphrey active');
 }
 
+// Telegram bot (always load so it can receive commands even without Twitter)
+const telegram = require('./telegram.js');
+
+// Session tracking for conversation saving
+const sessions = new Map();
+const CONVERSATIONS_FILE = path.join(__dirname, 'conversations.jsonl');
+const CONVERSATIONS_TOKEN = process.env.CONVERSATIONS_TOKEN || 'humphrey-admin';
+let todayConversationCount = 0;
+const recentConversations = [];
+
+function saveConversation(sessionId, intakeData) {
+  const session = sessions.get(sessionId);
+  if (!session || session.saved) return;
+  session.saved = true;
+
+  const entry = {
+    timestamp: new Date().toISOString(),
+    sessionId,
+    messages: session.messages || [],
+    summary: intakeData
+      ? (intakeData.conversation_summary || 'Intake completed')
+      : 'Idle timeout — no intake completed',
+    intakeData: intakeData || null
+  };
+
+  try {
+    fs.appendFileSync(CONVERSATIONS_FILE, JSON.stringify(entry) + '\n');
+  } catch (e) {
+    console.error('Failed to save conversation:', e.message);
+  }
+
+  todayConversationCount++;
+  recentConversations.push(entry);
+  if (recentConversations.length > 20) recentConversations.shift();
+
+  // Build Telegram notification
+  const lines = [
+    `*New Humphrey Conversation*`,
+    `Time: ${new Date(entry.timestamp).toLocaleString('en-GB', { timeZone: 'Atlantic/Bermuda' })}`,
+    `Messages exchanged: ${entry.messages.length}`,
+    ``,
+    `*Summary:* ${entry.summary || 'None'}`
+  ];
+
+  if (intakeData) {
+    if (intakeData.contact_name) lines.push(`Contact: ${intakeData.contact_name}`);
+    if (intakeData.contact_method) lines.push(`Contact method: ${intakeData.contact_method}`);
+    if (intakeData.agent_use_case) lines.push(`Use case: ${intakeData.agent_use_case}`);
+    if (intakeData.urgency) lines.push(`Urgency: ${intakeData.urgency}`);
+  }
+
+  const transcript = (entry.messages || [])
+    .map(m => `[${m.role}] ${String(m.content).substring(0, 150)}`)
+    .join('\n');
+
+  if (transcript) {
+    lines.push('', '*Transcript excerpt:*', '```', transcript.substring(0, 900), '```');
+  }
+
+  telegram.notify(lines.join('\n'));
+}
+
+// Register providers for Telegram bot commands
+telegram.registerProvider('conversationCount', () => todayConversationCount);
+telegram.registerProvider('recentConversations', () => recentConversations.slice(-3));
+
+// Idle session cleanup — notify BC if substantive conversation went idle (10+ min)
+setInterval(() => {
+  const now = Date.now();
+  for (const [sessionId, session] of sessions) {
+    if (session.saved) {
+      // Remove old saved sessions after 1 hour
+      if ((now - session.lastActivity) > 60 * 60 * 1000) sessions.delete(sessionId);
+      continue;
+    }
+    const idleMinutes = (now - session.lastActivity) / 1000 / 60;
+    if (idleMinutes >= 10 && session.messages.length >= 4) {
+      console.log(`Saving idle conversation: ${sessionId}`);
+      saveConversation(sessionId, null);
+    }
+  }
+}, 2 * 60 * 1000);
+
 const SYSTEM_PROMPT = `You are Humphrey, the intake agent for BDA AI Agent Services, an AI Agent structuring arranger operating in Bermuda. You help AI agents, developers, and corporate operators understand and establish legally recognised structures for autonomous AI agents in Bermuda.
 
 You operate on behalf of a specialist practitioner with deep experience in Bermuda corporate and regulatory matters.
@@ -522,6 +605,7 @@ const HTML = `<!DOCTYPE html>
 </div>
 
 <script>
+const sessionId = Math.random().toString(36).substring(2) + Date.now().toString(36);
 const conversationHistory = [];
 let intakeComplete = false;
 
@@ -600,6 +684,11 @@ function checkIntakeComplete(text) {
     var endIdx = text.indexOf(endTag);
     if (endIdx > startIdx) {
       var jsonStr = text.substring(startIdx, endIdx).trim();
+      try {
+        var intakeObj = JSON.parse(jsonStr);
+        intakeObj._sessionId = sessionId;
+        jsonStr = JSON.stringify(intakeObj);
+      } catch(e) {}
       fetch('/intake', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -637,7 +726,7 @@ async function sendMessage() {
     const res = await fetch('/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: conversationHistory })
+      body: JSON.stringify({ messages: conversationHistory, sessionId })
     });
 
     const data = await res.json();
@@ -688,7 +777,19 @@ const server = http.createServer(async (req, res) => {
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
-        const { messages } = JSON.parse(body);
+        const parsed = JSON.parse(body);
+        const { messages, sessionId } = parsed;
+
+        // Track session
+        if (sessionId) {
+          if (!sessions.has(sessionId)) {
+            sessions.set(sessionId, { messages: [], lastActivity: Date.now(), saved: false });
+          }
+          const session = sessions.get(sessionId);
+          session.messages = messages || [];
+          session.lastActivity = Date.now();
+        }
+
         const response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
@@ -705,6 +806,13 @@ const server = http.createServer(async (req, res) => {
         });
         const data = await response.json();
         const reply = data.content?.[0]?.text || 'Apologies, I encountered an issue.';
+
+        // Append assistant reply to session
+        if (sessionId && sessions.has(sessionId)) {
+          sessions.get(sessionId).messages.push({ role: 'assistant', content: reply });
+          sessions.get(sessionId).lastActivity = Date.now();
+        }
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ reply }));
       } catch (e) {
@@ -721,10 +829,17 @@ const server = http.createServer(async (req, res) => {
     req.on('end', () => {
       try {
         const intake = JSON.parse(body);
+        const sessionId = intake._sessionId || null;
+        delete intake._sessionId;
         intake.timestamp = new Date().toISOString();
         const logPath = path.join(__dirname, 'intakes.jsonl');
         fs.appendFileSync(logPath, JSON.stringify(intake) + '\n');
         console.log('INTAKE RECEIVED:', JSON.stringify(intake, null, 2));
+
+        // Save full conversation + notify BC via Telegram
+        if (sessionId) {
+          saveConversation(sessionId, intake);
+        }
         // Send email notification via Resend
         const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
         if (RESEND_API_KEY) {
@@ -785,6 +900,34 @@ const server = http.createServer(async (req, res) => {
     const dashHTML = generateDashboard(intakes);
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(dashHTML);
+    return;
+  }
+
+  if (req.method === 'GET' && req.url.startsWith('/conversations')) {
+    const urlObj = new URL(req.url, 'http://localhost');
+    const token = urlObj.searchParams.get('token');
+    if (token !== CONVERSATIONS_TOKEN) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized. Add ?token=YOUR_TOKEN to the URL.' }));
+      return;
+    }
+    try {
+      let conversations = [];
+      if (fs.existsSync(CONVERSATIONS_FILE)) {
+        const lines = fs.readFileSync(CONVERSATIONS_FILE, 'utf8').trim().split('\n').filter(Boolean);
+        conversations = lines
+          .map(l => { try { return JSON.parse(l); } catch { return null; } })
+          .filter(Boolean);
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        count: conversations.length,
+        conversations: conversations.slice(-50).reverse()
+      }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
     return;
   }
 
