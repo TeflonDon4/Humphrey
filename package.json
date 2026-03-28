@@ -1,13 +1,19 @@
 {
   "name": "humphrey",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Humphrey - BDA AI Agent Services intake agent",
-  "main": "server.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node index.js"
   },
   "engines": {
     "node": ">=18.0.0"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.20.0",
+    "node-telegram-bot-api": "^0.64.0",
+    "pg": "^8.11.0",
+    "resend": "^3.0.0",
+    "twitter-api-v2": "^1.17.0"
+  }
 }

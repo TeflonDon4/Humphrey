@@ -195,4 +195,20 @@ async function checkAndReply() {
 console.log('Humphrey Twitter agent starting...');
 checkAndReply();
 setInterval(checkAndReply, 5 * 60 * 1000);
-module.exports = { checkAndReply };
+
+// --- Humphrey v2: approval-gated reply posting ---
+const { TwitterApi: TwitterApiV2 } = require('twitter-api-v2');
+const twitterV2Client = new TwitterApiV2({
+  appKey: process.env.TWITTER_API_KEY,
+  appSecret: process.env.TWITTER_API_SECRET,
+  accessToken: process.env.TWITTER_ACCESS_TOKEN,
+  accessSecret: process.env.TWITTER_ACCESS_TOKEN_SECRET,
+});
+
+async function postApprovedReply(inReplyToTweetId, replyText) {
+  const tweet = await twitterV2Client.v2.reply(replyText, inReplyToTweetId);
+  console.log(`[POSTED] Reply ID: ${tweet.data.id}`);
+  return tweet.data.id;
+}
+
+module.exports = { checkAndReply, postReply: postApprovedReply };
