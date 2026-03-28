@@ -192,9 +192,11 @@ async function checkAndReply() {
   }
 }
 
-console.log('Humphrey Twitter agent starting...');
-checkAndReply();
-setInterval(checkAndReply, 5 * 60 * 1000);
+if (require.main === module) {
+  console.log('Humphrey Twitter agent starting...');
+  checkAndReply();
+  setInterval(checkAndReply, 5 * 60 * 1000);
+}
 
 // --- Humphrey v2: approval-gated reply posting ---
 const { TwitterApi: TwitterApiV2 } = require('twitter-api-v2');
