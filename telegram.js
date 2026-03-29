@@ -3,8 +3,7 @@ const db = require('./db');
 const twitter = require('./twitter');
 
 if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHAT_ID) {
-  console.error('[FATAL] TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set. Exiting.');
-  process.exit(1);
+  throw new Error('TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set in Railway environment variables');
 }
 
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
