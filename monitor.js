@@ -108,6 +108,8 @@ async function checkHomeTimeline() {
     const timeline = await twitterClient.v2.homeTimeline({
       max_results: 20,
       'tweet.fields': ['created_at', 'text', 'author_id'],
+      expansions: ['author_id'],
+      'user.fields': ['public_metrics', 'description', 'created_at'],
       exclude: ['retweets', 'replies']
     });
 
@@ -122,6 +124,20 @@ async function checkHomeTimeline() {
       const handle = author?.username || 'unknown';
 
       if (handle.toLowerCase() === 'bdaaiagentsvcs') continue;
+
+      // Credibility check — home timeline only
+      const credibility = guardrails.checkAccountCredibility(author);
+      if (!credibility.credible) {
+        console.log(`[SPAM] @${handle} skipped — ${credibility.reason}`);
+        continue;
+      }
+
+      // Spam/promotional content check — home timeline only
+      const spam = guardrails.checkSpam(tweet.text, author?.description);
+      if (spam.spam) {
+        console.log(`[SPAM] @${handle} skipped — ${spam.reason}`);
+        continue;
+      }
 
       const hardBlock = guardrails.checkHardBlock(tweet.text);
       if (hardBlock.blocked) {
