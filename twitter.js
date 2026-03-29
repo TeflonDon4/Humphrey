@@ -208,9 +208,16 @@ const twitterV2Client = new TwitterApiV2({
 });
 
 async function postApprovedReply(inReplyToTweetId, replyText) {
-  const tweet = await twitterV2Client.v2.reply(replyText, inReplyToTweetId);
-  console.log(`[POSTED] Reply ID: ${tweet.data.id}`);
-  return tweet.data.id;
+  try {
+    const tweet = await twitterV2Client.v2.reply(replyText, inReplyToTweetId);
+    console.log(`[POSTED] Reply ID: ${tweet.data.id}`);
+    return tweet.data.id;
+  } catch (err) {
+    const status = err.code ?? err.statusCode ?? 'unknown';
+    const body = err.data ? JSON.stringify(err.data) : err.message;
+    console.error(`[TWITTER POST ERROR] HTTP ${status} — ${body}`);
+    throw err;
+  }
 }
 
 module.exports = { checkAndReply, postReply: postApprovedReply };
