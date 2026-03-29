@@ -38,6 +38,12 @@ async function checkAccount(handle) {
         continue;
       }
 
+      const relevance = guardrails.checkRelevance(tweet.text);
+      if (!relevance.relevant) {
+        console.log(`[IRRELEVANT] @${handle} skipped — "${tweet.text.substring(0, 80)}..."`);
+        continue;
+      }
+
       const sensitive = guardrails.checkSensitiveTopic(tweet.text);
       const memory = await db.getMemoryForAccount(handle, 5);
 
@@ -79,6 +85,12 @@ async function checkMentions() {
       if (hardBlock.blocked) {
         await db.logBlockedTopic(tweet.id, 'mention', hardBlock.topic, tweet.text);
         await db.saveTweet(tweet.id, 'mention', tweet.text, `https://twitter.com/i/status/${tweet.id}`, 'blocked');
+        continue;
+      }
+
+      const relevance = guardrails.checkRelevance(tweet.text);
+      if (!relevance.relevant) {
+        console.log(`[IRRELEVANT] mention skipped — "${tweet.text.substring(0, 80)}..."`);
         continue;
       }
 
@@ -143,6 +155,12 @@ async function checkHomeTimeline() {
       if (hardBlock.blocked) {
         await db.logBlockedTopic(tweet.id, handle, hardBlock.topic, tweet.text);
         await db.saveTweet(tweet.id, handle, tweet.text, `https://twitter.com/${handle}/status/${tweet.id}`, 'blocked');
+        continue;
+      }
+
+      const relevance = guardrails.checkRelevance(tweet.text);
+      if (!relevance.relevant) {
+        console.log(`[IRRELEVANT] timeline @${handle} skipped — "${tweet.text.substring(0, 80)}..."`);
         continue;
       }
 

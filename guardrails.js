@@ -40,6 +40,45 @@ function checkSensitiveTopic(tweetText) {
   return { sensitive: false };
 }
 
+// Applied to all three sources — only engage on topics Humphrey covers
+const RELEVANT_KEYWORDS = [
+  // AI & agents
+  'ai agent', 'ai agents', 'ai model', 'ai models', 'ai system',
+  'ai startup', 'ai company', 'ai platform', 'ai infrastructure',
+  'ai governance', 'ai identity', 'ai legal',
+  'artificial intelligence', 'machine learning', 'deep learning',
+  'large language model', 'llm', 'foundation model', 'language model',
+  'openai', 'anthropic', 'claude', 'chatgpt', 'gemini', 'grok', 'mistral',
+  'agentic', 'autonomous agent', 'autonomous ai', 'agent framework',
+  'agent sdk', 'agent protocol', 'multi-agent', 'agent economy',
+  'agent identity', 'agent network', 'agent rights',
+
+  // Blockchain & digital assets
+  'blockchain', 'on-chain', 'onchain', 'smart contract', 'digital asset',
+  'web3', 'defi', 'dao ', 'decentralized', 'ethereum', 'bitcoin',
+  'cryptocurrency', 'tokenization', 'digital currency', 'stablecoin',
+  'payagentai.eth',
+
+  // Legal tech & identity
+  'legal entity', 'legal identity', 'legal personhood', 'legal standing',
+  'legal wrapper', 'corporate governance', 'liability', 'jurisdiction',
+  'incorporation', 'incorporated', 'legal tech', 'legaltech',
+  'regulatory framework', 'compliance framework', 'digital governance',
+
+  // Bermuda / PayAgent
+  'bermuda', 'payagent', 'bdaaiagentsvcs',
+];
+
+function checkRelevance(tweetText) {
+  const lower = tweetText.toLowerCase();
+  for (const keyword of RELEVANT_KEYWORDS) {
+    if (lower.includes(keyword)) {
+      return { relevant: true, keyword };
+    }
+  }
+  return { relevant: false };
+}
+
 // Home timeline only — named accounts and mentions are not filtered
 function checkSpam(tweetText, authorDescription = '') {
   const upper = tweetText.toUpperCase();
@@ -84,4 +123,4 @@ function checkAccountCredibility(author) {
   return { credible: true };
 }
 
-module.exports = { checkHardBlock, checkSensitiveTopic, checkSpam, checkAccountCredibility };
+module.exports = { checkHardBlock, checkSensitiveTopic, checkRelevance, checkSpam, checkAccountCredibility };
