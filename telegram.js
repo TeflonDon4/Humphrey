@@ -55,27 +55,47 @@ _${proposedReply}_`;
 }
 
 bot.on('callback_query', async (query) => {
-  const [action, tweetId] = query.data.split('_');
-  const tweet = await db.getTweetById(tweetId);
+  const firstUnderscore = query.data.indexOf('_');
+  const action = query.data.substring(0, firstUnderscore);
+  const tweetId = query.data.substring(firstUnderscore + 1);
 
-  if (action === 'approve') {
-    const finalReply = tweet.proposed_reply + '\n\n— Humphrey, on behalf of PayAgent';
-    await twitter.postReply(tweetId, finalReply);
-    await db.updateTweetStatus(tweetId, 'posted', finalReply);
-    await bot.answerCallbackQuery(query.id, { text: '✅ Posted!' });
-    await bot.sendMessage(CHAT_ID, `✅ Reply posted to @${tweet.account_handle}`);
-  }
+  try {
+    const tweet = await db.getTweetById(tweetId);
 
-  if (action === 'reject') {
-    await db.updateTweetStatus(tweetId, 'rejected');
-    await bot.answerCallbackQuery(query.id, { text: '❌ Rejected' });
-    await bot.sendMessage(CHAT_ID, `❌ Reply to @${tweet.account_handle} rejected`);
-  }
+    if (!tweet) {
+      await bot.answerCallbackQuery(query.id, { text: '⚠️ Tweet not found' });
+      await bot.sendMessage(CHAT_ID, `⚠️ Could not find tweet ${tweetId} in database`);
+      return;
+    }
 
-  if (action === 'edit') {
-    await db.setPendingEdit(tweetId);
-    await bot.answerCallbackQuery(query.id, { text: 'Send your edited reply as a message' });
-    await bot.sendMessage(CHAT_ID, `✏️ Send your edited reply for @${tweet.account_handle} now (no signature needed — it will be added automatically):`);
+    if (action === 'approve') {
+      const finalReply = tweet.proposed_reply + '\n\n— Humphrey, on behalf of PayAgent';
+      await twitter.postReply(tweetId, finalReply);
+      await db.updateTweetStatus(tweetId, 'posted', finalReply);
+      await bot.answerCallbackQuery(query.id, { text: '✅ Posted!' });
+      await bot.sendMessage(CHAT_ID, `✅ Reply posted to @${tweet.account_handle}`);
+    }
+
+    if (action === 'reject') {
+      await db.updateTweetStatus(tweetId, 'rejected');
+      await bot.answerCallbackQuery(query.id, { text: '❌ Rejected' });
+      await bot.sendMessage(CHAT_ID, `❌ Reply to @${tweet.account_handle} rejected`);
+    }
+
+    if (action === 'edit') {
+      await db.setPendingEdit(tweetId);
+      await bot.answerCallbackQuery(query.id, { text: 'Send your edited reply as a message' });
+      await bot.sendMessage(CHAT_ID, `✏️ Send your edited reply for @${tweet.account_handle} now (no signature needed — it will be added automatically):`);
+    }
+
+  } catch (err) {
+    console.error(`[TELEGRAM] callback_query error (${action} ${tweetId}): ${err.message}`);
+    try {
+      await bot.answerCallbackQuery(query.id, { text: '⚠️ Error — check logs' });
+      await bot.sendMessage(CHAT_ID, `⚠️ Error on ${action} for tweet ${tweetId}: ${err.message}`);
+    } catch (e) {
+      console.error('[TELEGRAM] Failed to send error response:', e.message);
+    }
   }
 });
 
