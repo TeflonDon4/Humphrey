@@ -6,8 +6,22 @@ if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHAT_ID) {
   throw new Error('TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set in Railway environment variables');
 }
 
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
+const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: false });
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+
+bot.on('polling_error', (error) => {
+  if (error.response?.statusCode === 409) {
+    console.warn('[TELEGRAM] 409 Conflict — old instance still running. Stopping and retrying in 10s...');
+    bot.stopPolling()
+      .then(() => new Promise(r => setTimeout(r, 10000)))
+      .then(() => bot.startPolling())
+      .catch(e => console.error('[TELEGRAM] Polling restart failed:', e.message));
+  } else {
+    console.error('[TELEGRAM POLLING ERROR]', error.code, error.message);
+  }
+});
+
+bot.startPolling();
 
 async function sendApprovalRequest(tweetId, accountHandle, tweetText, tweetUrl, proposedReply, isSensitive = false) {
   const sensitiveWarning = isSensitive ? '\n⚠️ *SENSITIVE TOPIC — review carefully*' : '';

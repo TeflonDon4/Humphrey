@@ -40,7 +40,15 @@ async function checkAccount(handle) {
 
       const sensitive = guardrails.checkSensitiveTopic(tweet.text);
       const memory = await db.getMemoryForAccount(handle, 5);
-      const proposedReply = await humphrey.generateReply(tweet.text, handle, memory);
+
+      let proposedReply;
+      try {
+        proposedReply = await humphrey.generateReply(tweet.text, handle, memory);
+      } catch (aiErr) {
+        console.error(`[ANTHROPIC ERROR] @${handle} tweet ${tweet.id}: ${aiErr.message}`);
+        continue;
+      }
+
       const tweetUrl = `https://twitter.com/${handle}/status/${tweet.id}`;
 
       await db.saveTweet(tweet.id, handle, tweet.text, tweetUrl, 'pending', proposedReply);
@@ -75,7 +83,15 @@ async function checkMentions() {
       }
 
       const sensitive = guardrails.checkSensitiveTopic(tweet.text);
-      const proposedReply = await humphrey.generateReply(tweet.text, 'mention', []);
+
+      let proposedReply;
+      try {
+        proposedReply = await humphrey.generateReply(tweet.text, 'mention', []);
+      } catch (aiErr) {
+        console.error(`[ANTHROPIC ERROR] mention tweet ${tweet.id}: ${aiErr.message}`);
+        continue;
+      }
+
       const tweetUrl = `https://twitter.com/i/status/${tweet.id}`;
 
       await db.saveTweet(tweet.id, 'mention', tweet.text, tweetUrl, 'pending', proposedReply);
@@ -116,7 +132,15 @@ async function checkHomeTimeline() {
 
       const sensitive = guardrails.checkSensitiveTopic(tweet.text);
       const memory = await db.getMemoryForAccount(handle, 3);
-      const proposedReply = await humphrey.generateReply(tweet.text, handle, memory);
+
+      let proposedReply;
+      try {
+        proposedReply = await humphrey.generateReply(tweet.text, handle, memory);
+      } catch (aiErr) {
+        console.error(`[ANTHROPIC ERROR] timeline @${handle} tweet ${tweet.id}: ${aiErr.message}`);
+        continue;
+      }
+
       const tweetUrl = `https://twitter.com/${handle}/status/${tweet.id}`;
 
       await db.saveTweet(tweet.id, handle, tweet.text, tweetUrl, 'pending', proposedReply);
