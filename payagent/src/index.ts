@@ -99,8 +99,9 @@ const app = express();
 app.use(express.json());
 
 app.get("/health", (_req: Request, res: Response) => {
-  res.json({
-    status: "ok",
+  const ready = currentSessionId !== undefined;
+  res.status(ready ? 200 : 503).json({
+    status: ready ? "operational" : "starting",
     agent: "PayAgent",
     entity: "Kadikoy Limited",
     wallet: "0x6B921244b7239Ac9B961c06794Ec5eA3B61e87Bd",
@@ -130,15 +131,18 @@ app.post("/chat", async (req: Request, res: Response) => {
 
 const PORT = process.env.PORT ?? 3000;
 
-(async () => {
-  try {
-    currentSessionId = await initSession();
-    app.listen(PORT, () => {
-      console.log(`[PayAgent] HTTP server listening on port ${PORT}`);
-      console.log(`[PayAgent] session_id: ${currentSessionId}`);
-    });
-  } catch (err) {
-    console.error("[PayAgent] Fatal startup error:", err);
+// Start Express immediately so Railway's healthcheck gets a response right away.
+// initSession() runs in the background; /health returns 503 "starting" until it completes.
+app.listen(PORT, () => {
+  console.log(`[PayAgent] HTTP server listening on port ${PORT}`);
+});
+
+initSession()
+  .then((sessionId) => {
+    currentSessionId = sessionId;
+    console.log(`[PayAgent] Ready. session_id: ${currentSessionId}`);
+  })
+  .catch((err) => {
+    console.error("[PayAgent] Fatal: session init failed:", err);
     process.exit(1);
-  }
-})();
+  });
