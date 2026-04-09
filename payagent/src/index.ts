@@ -3,9 +3,7 @@ import express, { Request, Response } from "express";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import fs from "fs/promises";
 import path from "path";
-import { fileURLToPath } from "url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SESSION_FILE = path.join(__dirname, "..", "session_id.txt");
 
 const SYSTEM_PROMPT = `You are PayAgent, an autonomous governance agent.

@@ -2,8 +2,7 @@
   "name": "payagent",
   "version": "1.0.0",
   "description": "PayAgent — Kadikoy Limited governance agent (Bermuda reg. 202302362)",
-  "type": "module",
-  "scripts": {
+"scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts"
