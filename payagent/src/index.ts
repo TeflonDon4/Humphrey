@@ -1,3 +1,4 @@
+console.log('Container starting...');
 import express, { Request, Response } from "express";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import fs from "fs/promises";
@@ -99,6 +100,7 @@ const app = express();
 app.use(express.json());
 
 app.get("/health", (_req: Request, res: Response) => {
+  console.log('Health check hit');
   res.status(200).json({
     status: currentSessionId !== undefined ? "operational" : "starting",
     agent: "PayAgent",
@@ -131,11 +133,13 @@ app.post("/chat", async (req: Request, res: Response) => {
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
 
 // Start Express immediately so Railway's healthcheck gets a response right away.
-// initSession() runs in the background; /health returns 503 "starting" until it completes.
+// initSession() runs in the background; /health returns 200 "starting" until it completes.
+console.log('Starting Express on port', PORT);
 app.listen(PORT, () => {
-  console.log(`[PayAgent] HTTP server listening on port ${PORT}`);
+  console.log('Express listening on port', PORT);
 });
 
+console.log('Starting initSession...');
 initSession()
   .then((sessionId) => {
     currentSessionId = sessionId;
