@@ -4,7 +4,7 @@
   "description": "MCP server and CLI for the AIS-1 Agent Identity Standard registry",
   "main": "dist/server.js",
   "bin": {
-    "ais1": "./dist/cli.js"
+    "ais1": "dist/cli.js"
   },
   "files": [
     "dist",
@@ -33,6 +33,11 @@
   "engines": {
     "node": ">=20.0.0"
   },
-  "keywords": ["ais1", "mcp", "ai-identity", "agent-identity"],
+  "keywords": [
+    "ais1",
+    "mcp",
+    "ai-identity",
+    "agent-identity"
+  ],
   "license": "CC0-1.0"
 }
