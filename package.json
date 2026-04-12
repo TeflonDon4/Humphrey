@@ -1,10 +1,15 @@
 {
-  "name": "humphrey",
-  "version": "2.0.0",
-  "description": "Humphrey - BDA AI Agent Services intake agent",
-  "main": "index.js",
+  "name": "ais1",
+  "version": "1.0.1",
+  "description": "AI Services CLI - Command-line interface for BDA AI Agent Services",
+  "main": "dist/cli.js",
+  "bin": {
+    "ais1": "dist/cli.js"
+  },
   "scripts": {
-    "start": "node index.js"
+    "build": "node scripts/build.js",
+    "start": "node index.js",
+    "prepare": "npm run build"
   },
   "engines": {
     "node": ">=18.0.0"
